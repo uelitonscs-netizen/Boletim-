@@ -95,15 +95,16 @@ function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&am
 async function fetchLivePrice(ticker){
   const token = getToken();
   if(!token) throw new Error('Configure seu token da brapi.dev primeiro (botão de engrenagem no topo).');
-  const url = 'https://brapi.dev/api/v2/stocks/quote?symbols=' + encodeURIComponent(ticker);
+  const url = 'https://brapi.dev/api/quote/' + encodeURIComponent(ticker);
   const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
-  if(res.status===401) throw new Error('Token inválido ou sem permissão pra esse ativo.');
+  if(res.status===401) throw new Error('Token inválido. Confira se colou certo (sem espaços) nas Configurações.');
   if(res.status===402) throw new Error('Limite do seu plano na brapi.dev atingido.');
+  if(res.status===404) throw new Error('Ticker não encontrado na brapi.dev.');
   if(!res.ok) throw new Error('Falha ao consultar cotação (HTTP '+res.status+').');
   const data = await res.json();
   const item = data.results && data.results[0];
-  if(!item || !item.data) throw new Error('Ticker não encontrado.');
-  return item.data.regularMarketPrice;
+  if(!item || item.regularMarketPrice==null) throw new Error('Sem preço disponível pra esse ticker.');
+  return item.regularMarketPrice;
 }
 
 /* ---------- Mini SVG chart ---------- */
