@@ -77,6 +77,19 @@ function setToken(v){ localStorage.setItem('brapi-token', v); }
 /* ---------- Valuation ---------- */
 function calcBazin(div,dy){ const d=parseFloat(div),y=parseFloat(dy); if(!d||!y||d<=0||y<=0) return null; return d/(y/100); }
 function calcGraham(lpa,vpa){ const l=parseFloat(lpa),v=parseFloat(vpa); if(!l||!v||l<=0||v<=0) return null; return Math.sqrt(22.5*l*v); }
+function calcPVP(preco,vpCota){
+  const p=parseFloat(preco), v=parseFloat(vpCota);
+  if(!p||!v||p<=0||v<=0) return null;
+  return p/v;
+}
+function getPvpStatus(pvp){
+  if(pvp==null) return {label:'—',color:'muted'};
+  if(pvp<0.90) return {label:'Desconto forte',color:'green'};
+  if(pvp<1.0) return {label:'Desconto moderado',color:'green'};
+  if(pvp===1.0) return {label:'No patrimônio',color:'muted'};
+  if(pvp<=1.10) return {label:'Ágio pequeno',color:'amber'};
+  return {label:'Ágio elevado',color:'brick'};
+}
 function getStatus(preco,teto){
   const p=parseFloat(preco), t=parseFloat(teto);
   if(!p||!t) return {label:'SEM DADOS',color:'muted',margem:null};
@@ -255,11 +268,13 @@ function renderComparador(){
 
 function renderCompany(ticker){
   let form = loadCompany(ticker);
-  if(!form) form = {ticker,nome:'',tipo:'ACAO',setor:'',precoAtual:'',lpa:'',vpa:'',dividendosAnuais:'',roic:'',dividaLiquidaEbitda:'',dyDesejado:'6',precoVenda:'',alertaAtivo:true,history:[],notes:[]};
+  if(!form) form = {ticker,nome:'',tipo:'ACAO',setor:'',precoAtual:'',lpa:'',vpa:'',vpCota:'',dividendosAnuais:'',roic:'',dividaLiquidaEbitda:'',dyDesejado:'6',precoVenda:'',alertaAtivo:true,history:[],notes:[]};
 
   const bazin = calcBazin(form.dividendosAnuais, form.dyDesejado);
   const graham = calcGraham(form.lpa, form.vpa);
   const precoTeto = bazin || graham || null;
+  const pvp = calcPVP(form.precoAtual, form.vpCota);
+  const pvpStatus = getPvpStatus(pvp);
   const pl = (form.lpa && form.precoAtual) ? (parseFloat(form.precoAtual)/parseFloat(form.lpa)) : null;
   const dyAtual = (form.dividendosAnuais && form.precoAtual) ? (parseFloat(form.dividendosAnuais)/parseFloat(form.precoAtual)*100) : null;
   const status = getStatus(form.precoAtual, precoTeto);
@@ -293,6 +308,7 @@ function renderCompany(ticker){
     field('f_dividendosAnuais','Dividendos 12m/cota (R$)', form.dividendosAnuais) +
     field('f_lpa','LPA (R$)', form.lpa, 'lucro por ação') +
     field('f_vpa','VPA (R$)', form.vpa, 'valor patrimonial/ação') +
+    field('f_vpCota','VP por cota (R$)', form.vpCota, 'p/ P·VP — útil em FIIs') +
     field('f_roic','ROIC (%)', form.roic) +
     field('f_dividaLiquidaEbitda','Dív. líq / EBITDA (x)', form.dividaLiquidaEbitda) +
     field('f_dyDesejado','DY desejado p/ Bazin (%)', form.dyDesejado, 'padrão 6%') +
@@ -311,13 +327,20 @@ function renderCompany(ticker){
     stat('DY atual', dyAtual?fmtPct(dyAtual,2):'—') +
     '</div><div class="muted" style="margin-top:10px;font-size:11px;">Teto usado no status: '+(bazin?'Bazin':graham?'Graham':'sem dados suficientes')+'. Ferramenta de apoio ao seu estudo — não é recomendação de compra ou venda.</div></div>';
 
+  html += '<div class="card"><div class="section-title">P/VP — Valor Patrimonial</div><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">' +
+    stat('P/VP', pvp?pvp.toFixed(2):'—') +
+    stat('Desconto/Ágio', pvp?fmtPct((1-pvp)*100,1):'—') +
+    '<span class="stamp stamp-sm stamp-'+pvpStatus.color+'">'+pvpStatus.label+'</span>' +
+    '</div><div class="muted" style="margin-top:10px;font-size:11px;">P/VP &lt; 1 indica cota negociada abaixo do valor patrimonial (comum em FIIs). Não use isoladamente: cheque vacância, qualidade dos inquilinos/ativos e a data do último laudo de avaliação antes de decidir.</div></div>';
+
   const chartHtml = renderChart(form.history||[]);
   if(chartHtml) html += '<div class="card"><div class="section-title">Histórico: preço vs. teto</div>'+chartHtml+'</div>';
 
   if(form.history && form.history.length>0){
-    html += '<div class="card" style="overflow-x:auto;"><div class="section-title">Registros</div><table class="data-table"><thead><tr><th>Data</th><th class="text-right">Preço</th><th class="text-right">Teto</th><th class="text-right">ROIC</th><th class="text-right">Dív/EBITDA</th></tr></thead><tbody>';
+    html += '<div class="card" style="overflow-x:auto;"><div class="section-title">Registros</div><table class="data-table"><thead><tr><th>Data</th><th class="text-right">Preço</th><th class="text-right">Teto</th><th class="text-right">P/VP</th><th class="text-right">ROIC</th><th class="text-right">Dív/EBITDA</th></tr></thead><tbody>';
     [...form.history].reverse().forEach(h=>{
-      html += '<tr><td>'+fmtDate(h.date)+'</td><td class="text-right">'+fmtMoney(h.precoAtual)+'</td><td class="text-right">'+(h.precoTeto?fmtMoney(h.precoTeto):'—')+'</td><td class="text-right">'+(h.roic?fmtPct(h.roic):'—')+'</td><td class="text-right">'+(h.dividaLiquidaEbitda?h.dividaLiquidaEbitda+'x':'—')+'</td></tr>';
+      const hPvp = h.pvp!=null ? h.pvp : calcPVP(h.precoAtual, h.vpCota);
+      html += '<tr><td>'+fmtDate(h.date)+'</td><td class="text-right">'+fmtMoney(h.precoAtual)+'</td><td class="text-right">'+(h.precoTeto?fmtMoney(h.precoTeto):'—')+'</td><td class="text-right">'+(hPvp?hPvp.toFixed(2):'—')+'</td><td class="text-right">'+(h.roic?fmtPct(h.roic):'—')+'</td><td class="text-right">'+(h.dividaLiquidaEbitda?h.dividaLiquidaEbitda+'x':'—')+'</td></tr>';
     });
     html += '</tbody></table></div>';
   }
@@ -374,7 +397,7 @@ function attachHandlers(route){
       const entry = {ticker:t,nome,tipo,setor,precoAtual:'',precoTeto:null,updatedAt:null};
       const next = [...companies, entry].sort((a,b)=>a.ticker.localeCompare(b.ticker));
       saveIndex(next);
-      saveCompany(t, {ticker:t,nome,tipo,setor,precoAtual:'',lpa:'',vpa:'',dividendosAnuais:'',roic:'',dividaLiquidaEbitda:'',dyDesejado:'6',precoVenda:'',alertaAtivo:true,history:[],notes:[]});
+      saveCompany(t, {ticker:t,nome,tipo,setor,precoAtual:'',lpa:'',vpa:'',vpCota:'',dividendosAnuais:'',roic:'',dividaLiquidaEbitda:'',dyDesejado:'6',precoVenda:'',alertaAtivo:true,history:[],notes:[]});
       uiState.showAdd = false;
       location.hash = '#/company/'+encodeURIComponent(t);
     };
@@ -416,6 +439,7 @@ function attachHandlers(route){
       form.dividendosAnuais = document.getElementById('f_dividendosAnuais').value;
       form.lpa = document.getElementById('f_lpa').value;
       form.vpa = document.getElementById('f_vpa').value;
+      form.vpCota = document.getElementById('f_vpCota').value;
       form.roic = document.getElementById('f_roic').value;
       form.dividaLiquidaEbitda = document.getElementById('f_dividaLiquidaEbitda').value;
       form.dyDesejado = document.getElementById('f_dyDesejado').value;
@@ -425,7 +449,8 @@ function attachHandlers(route){
       const bazin = calcBazin(form.dividendosAnuais, form.dyDesejado);
       const graham = calcGraham(form.lpa, form.vpa);
       const precoTeto = bazin || graham || null;
-      const snapshot = {date:todayISO(),precoAtual:form.precoAtual,lpa:form.lpa,vpa:form.vpa,dividendosAnuais:form.dividendosAnuais,roic:form.roic,dividaLiquidaEbitda:form.dividaLiquidaEbitda,precoTeto};
+      const pvpSnap = calcPVP(form.precoAtual, form.vpCota);
+      const snapshot = {date:todayISO(),precoAtual:form.precoAtual,lpa:form.lpa,vpa:form.vpa,vpCota:form.vpCota,dividendosAnuais:form.dividendosAnuais,roic:form.roic,dividaLiquidaEbitda:form.dividaLiquidaEbitda,precoTeto,pvp:pvpSnap};
       form.history = (form.history||[]).filter(h=>h.date!==snapshot.date);
       form.history.push(snapshot);
       form.history.sort((a,b)=>a.date.localeCompare(b.date));
