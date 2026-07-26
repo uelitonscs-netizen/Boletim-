@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Boletim de Carteira — Publicar</title>
+<style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:sans-serif;background:#0a0a0a;color:#f0f0f0;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}.box{background:#111;border:1px solid #222;border-radius:16px;padding:28px;width:100%;max-width:380px;}.logo{font-size:22px;font-weight:800;color:#fff;margin-bottom:4px;}.logo span{color:#2f6844;}.sub{color:#555;font-size:13px;margin-bottom:20px;}label{display:block;color:#888;font-size:11px;margin-bottom:5px;font-weight:700;}input{width:100%;background:#0d0d0d;border:1px solid #2a2a2a;border-radius:8px;color:#f0f0f0;padding:10px 14px;font-size:14px;margin-bottom:16px;outline:none;}.btn{width:100%;background:#2f6844;color:#fff;border:none;border-radius:8px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;}.btn:disabled{opacity:.5;}#log{margin-top:14px;font-size:12px;line-height:2;}.ok{color:#4ade80;}.err{color:#f87171;}.wait{color:#94a3b8;}</style>
+</head><body>
+<div class="box">
+  <div class="logo">Boletim<span>Publicar</span></div>
+  <div class="sub">Envia o index.html mais recente pro seu repositório no GitHub</div>
+  <label>Usuário/organização do GitHub</label>
+  <input id="owner" placeholder="ex: uelitonscs-netizen" value="uelitonscs-netizen"/>
+  <label>Nome do repositório</label>
+  <input id="repo" placeholder="ex: boletim-de-carteira" value="Boletim-"/>
+  <label>GitHub Token</label>
+  <input id="token" type="password" placeholder="ghp_..."/>
+  <label>Arquivo index.html</label>
+  <input id="file" type="file" accept=".html"/>
+  <button class="btn" id="btn">Publicar index.html</button>
+  <div id="log"></div>
+</div>
+<script>
+var FILE = 'index.html';
+var logEl = document.getElementById('log');
+var btn = document.getElementById('btn');
+function addLog(msg, cls){ var d=document.createElement('div'); d.className=cls; d.textContent=msg; logEl.appendChild(d); }
+function b64(str){ return btoa(unescape(encodeURIComponent(str))); }
+function ghGet(owner, repo, path, token){
+  return fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/'+path, {
+    headers: { Authorization: 'Bearer '+token, Accept: 'application/vnd.github+json' }
+  });
+}
+function ghPut(owner, repo, path, body, token){
+  return fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/'+path, {
+    method: 'PUT',
+    headers: { Authorization: 'Bearer '+token, Accept: 'application/vnd.github+json', 'Content-Type':'application/json' },
+    body: JSON.stringify(body)
+  });
+}
+function readFile(file){
+  return new Promise(function(resolve, reject){
+    var r = new FileReader();
+    r.onload = function(){ resolve(r.result); };
+    r.onerror = function(){ reject(new Error('Não consegui ler o arquivo.')); };
+    r.readAsText(file);
+  });
+}
+
+btn.addEventListener('click', function(){
+  var owner = document.getElementById('owner').value.trim();
+  var repo = document.getElementById('repo').value.trim();
+  var tk = document.getElementById('token').value.trim();
+  var fileInput = document.getElementById('file');
+  logEl.innerHTML = '';
+  if(!owner || !repo || !tk){ addLog('Preencha usuário, repositório e token.', 'err'); return; }
+  if(!fileInput.files[0]){ addLog('Escolha o arquivo index.html.', 'err'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  addLog('Lendo arquivo...', 'wait');
+
+  readFile(fileInput.files[0])
+    .then(function(content){
+      addLog('Verificando versão atual no repositório...', 'wait');
+      var B64 = b64(content);
+      return ghGet(owner, repo, FILE, tk).then(function(r){ return r.ok ? r.json() : null; }).then(function(cur){
+        var body = { message: 'update: boletim de carteira', content: B64 };
+        if(cur && cur.sha) body.sha = cur.sha;
+        addLog('Enviando nova versão...', 'wait');
+        return ghPut(owner, repo, FILE, body, tk);
+      });
+    })
+    .then(function(r){
+      if(r.ok){
+        addLog('Publicado! Se o GitHub Pages estiver ativo, fica no ar em ~30s.', 'ok');
+        btn.textContent = '✓ Publicado';
+      } else {
+        return r.json().then(function(e){ throw new Error(e.message || r.status); });
+      }
+    })
+    .catch(function(e){ addLog('Erro: '+e.message, 'err'); btn.disabled=false; btn.textContent='Publicar index.html'; });
+});
+</script>
+</body></html>
