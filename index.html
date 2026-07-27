@@ -178,19 +178,62 @@ function fmtDate(iso){ if(!iso) return '—'; const p=iso.split('-'); return p[2
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* ---------- brapi.dev live price ---------- */
-async function fetchLivePrice(ticker){
+async function fetchLiveData(ticker){
   const token = getToken();
   if(!token) throw new Error('Configure seu token da brapi.dev primeiro (botão de engrenagem no topo).');
-  const url = 'https://brapi.dev/api/quote/' + encodeURIComponent(ticker);
+  const url = 'https://brapi.dev/api/quote/' + encodeURIComponent(ticker)
+            + '?modules=defaultKeyStatistics,financialData&dividends=true';
   const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
   if(res.status===401) throw new Error('Token inválido. Confira se colou certo (sem espaços) nas Configurações.');
-  if(res.status===402) throw new Error('Limite do seu plano na brapi.dev atingido.');
+  if(res.status===402) throw new Error('Seu plano da brapi.dev não libera os dados fundamentalistas (ou o limite foi atingido). O preço ainda pode ser preenchido à mão.');
   if(res.status===404) throw new Error('Ticker não encontrado na brapi.dev.');
-  if(!res.ok) throw new Error('Falha ao consultar cotação (HTTP '+res.status+').');
+  if(!res.ok) throw new Error('Falha ao consultar (HTTP '+res.status+').');
   const data = await res.json();
   const item = data.results && data.results[0];
-  if(!item || item.regularMarketPrice==null) throw new Error('Sem preço disponível pra esse ticker.');
-  return item.regularMarketPrice;
+  if(!item) throw new Error('Sem dados pra esse ticker.');
+
+  const ks = item.defaultKeyStatistics || {};
+  const fd = item.financialData || {};
+  const out = { preenchidos: [], faltando: [] };
+
+  // Preço
+  if(item.regularMarketPrice!=null) out.precoAtual = item.regularMarketPrice;
+
+  // LPA (lucro por ação) e VPA (valor patrimonial por ação)
+  if(ks.trailingEps!=null) { out.lpa = ks.trailingEps; out.preenchidos.push('LPA'); }
+  else out.faltando.push('LPA');
+
+  if(ks.bookValue!=null) { out.vpa = ks.bookValue; out.preenchidos.push('VPA'); }
+  else out.faltando.push('VPA');
+
+  // Dividendos dos últimos 12 meses (soma do histórico de proventos em dinheiro)
+  const cash = (item.dividendsData && item.dividendsData.cashDividends) || [];
+  if(cash.length){
+    const corte = new Date(); corte.setFullYear(corte.getFullYear()-1);
+    let soma = 0, achou = false;
+    cash.forEach(function(d){
+      const dt = new Date(d.paymentDate || d.approvedOn || d.lastDatePrior);
+      const v = parseFloat(d.rate);
+      if(!isNaN(dt) && dt >= corte && !isNaN(v)){ soma += v; achou = true; }
+    });
+    if(achou && soma>0){ out.dividendosAnuais = Number(soma.toFixed(4)); out.preenchidos.push('Dividendos 12m'); }
+    else out.faltando.push('Dividendos 12m');
+  } else out.faltando.push('Dividendos 12m');
+
+  // Dívida líquida / EBITDA
+  const dividaBruta = fd.totalDebt, caixa = fd.totalCash, ebitda = fd.ebitda;
+  if(dividaBruta!=null && ebitda!=null && ebitda>0){
+    const liq = dividaBruta - (caixa || 0);
+    out.dividaLiquidaEbitda = Number((liq/ebitda).toFixed(2));
+    out.preenchidos.push('Dív.líq/EBITDA');
+  } else out.faltando.push('Dív.líq/EBITDA');
+
+  // ROIC: a brapi não devolve ROIC. Devolve ROE (returnOnEquity), que é outra métrica.
+  // Não preenchemos o campo ROIC com ROE pra não misturar as coisas.
+  out.roeInformativo = (fd.returnOnEquity!=null) ? Number((fd.returnOnEquity*100).toFixed(1)) : null;
+  out.faltando.push('ROIC');
+
+  return out;
 }
 
 /* ---------- Mini SVG chart ---------- */
@@ -234,7 +277,7 @@ function currentRoute(){
 window.addEventListener('hashchange', render);
 window.addEventListener('DOMContentLoaded', render);
 
-let uiState = { showAdd:false, showSettings:false, fetchError:'', fetching:false, savedMsg:'' };
+let uiState = { showAdd:false, showSettings:false, fetchError:'', fetchInfo:'', fetching:false, savedMsg:'' };
 
 function render(){
   const route = currentRoute();
@@ -391,8 +434,9 @@ function renderCompany(ticker){
   html += '<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px;">' +
     '<label class="field" style="flex:1;margin-bottom:0;"><span class="field-label">Preço atual (R$)</span>' +
     '<input class="input" type="number" step="0.01" id="f_precoAtual" value="'+esc(form.precoAtual)+'"/></label>' +
-    '<button class="btn btn-outline" id="fetchPriceBtn" '+(uiState.fetching?'disabled':'')+'>'+(uiState.fetching?'Buscando…':'Buscar preço atual')+'</button></div>';
+    '<button class="btn btn-outline" id="fetchPriceBtn" '+(uiState.fetching?'disabled':'')+'>'+(uiState.fetching?'Buscando…':'Buscar dados')+'</button></div>';
   if(uiState.fetchError) html += '<div style="color:var(--brick);font-size:12px;margin-bottom:10px;">'+esc(uiState.fetchError)+'</div>';
+  if(uiState.fetchInfo) html += '<div class="muted" style="font-size:11.5px;margin-bottom:10px;line-height:1.5;">'+esc(uiState.fetchInfo)+'</div>';
 
   html += '<div class="grid-2">' +
     field('f_dividendosAnuais','Dividendos 12m/cota (R$)', form.dividendosAnuais) +
@@ -509,13 +553,21 @@ function attachHandlers(route){
     };
     const fetchBtn = document.getElementById('fetchPriceBtn');
     if(fetchBtn) fetchBtn.onclick = async ()=>{
-      uiState.fetching = true; uiState.fetchError=''; render();
+      uiState.fetching = true; uiState.fetchError=''; uiState.fetchInfo=''; render();
       try{
-        const price = await fetchLivePrice(ticker);
+        const d = await fetchLiveData(ticker);
         const form = loadCompany(ticker) || {};
-        form.precoAtual = String(price);
+        if(d.precoAtual!=null) form.precoAtual = String(d.precoAtual);
+        if(d.lpa!=null) form.lpa = String(d.lpa);
+        if(d.vpa!=null) form.vpa = String(d.vpa);
+        if(d.dividendosAnuais!=null) form.dividendosAnuais = String(d.dividendosAnuais);
+        if(d.dividaLiquidaEbitda!=null) form.dividaLiquidaEbitda = String(d.dividaLiquidaEbitda);
         saveCompany(ticker, form);
         uiState.fetching = false;
+        let msg = 'Preenchidos: Preço' + (d.preenchidos.length ? ', '+d.preenchidos.join(', ') : '') + '.';
+        if(d.faltando.length) msg += ' Preencha à mão: '+d.faltando.join(', ')+'.';
+        if(d.roeInformativo!=null) msg += ' (A brapi não fornece ROIC; o ROE do ativo é '+d.roeInformativo+'%, mas é outra métrica — não usei no campo.)';
+        uiState.fetchInfo = msg;
       }catch(e){
         uiState.fetching = false;
         uiState.fetchError = e.message;
