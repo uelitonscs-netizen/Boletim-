@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Boletim de Carteira</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1c2a22">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Boletim">
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+}
+</script>
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+:root{
+  --paper:#efeee3; --paper-card:#f8f6ee; --ink:#1c2a22; --ink-muted:#6b7062;
+  --border:#c9c2aa; --green:#2f6844; --green-bg:#dce6d9; --brick:#8b3a2b; --brick-bg:#efdad2;
+  --amber:#a9762f; --amber-bg:#f1e4c8; --input-bg:#fcfbf6;
+  --font-display:'Roboto Slab',serif; --font-body:'IBM Plex Sans',sans-serif; --font-mono:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-body);}
+a{color:inherit;}
+.container{max-width:720px;margin:0 auto;padding:24px 16px 60px;}
+.header{border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;}
+.title{font-family:var(--font-display);font-weight:700;font-size:26px;letter-spacing:-0.01em;}
+.subtitle{font-size:12px;color:var(--ink-muted);margin-top:2px;}
+.nav{display:flex;gap:8px;}
+.nav button{padding:7px 14px;border-radius:4px;border:1px solid var(--ink);font-family:var(--font-body);font-weight:600;font-size:13px;background:transparent;color:var(--ink);cursor:pointer;}
+.nav button.active{background:var(--ink);color:var(--paper);}
+.card{background:var(--paper-card);border:1px solid var(--border);border-radius:6px;padding:16px;}
+.card + .card{margin-top:16px;}
+.section-title{font-family:var(--font-display);font-weight:700;font-size:15px;margin-bottom:12px;}
+.field{display:block;margin-bottom:12px;}
+.field-label{display:block;font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:4px;}
+.field-hint{display:block;font-size:11px;color:var(--ink-muted);margin-top:2px;}
+.input{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:4px;padding:8px 10px;font-family:var(--font-mono);font-size:14px;color:var(--ink);}
+.input.text{font-family:var(--font-body);}
+textarea.input{min-height:70px;resize:vertical;}
+input:focus,select:focus,textarea:focus,button:focus{outline:2px solid var(--green);outline-offset:1px;}
+.btn{padding:9px 16px;border-radius:4px;font-family:var(--font-body);font-weight:600;font-size:13px;cursor:pointer;border:1px solid var(--ink);background:var(--ink);color:var(--paper);}
+.btn-outline{background:transparent;color:var(--ink);border:1px solid var(--border);}
+.btn-danger{background:transparent;color:var(--brick);border:1px solid var(--brick);}
+.btn:disabled{opacity:.5;cursor:default;}
+.link-btn{background:none;border:none;color:var(--ink-muted);font-size:13px;cursor:pointer;font-family:var(--font-body);padding:0;}
+.stamp{display:inline-block;font-family:var(--font-display);font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border-radius:4px;transform:rotate(-3deg);white-space:nowrap;}
+.stamp-md{padding:5px 12px;font-size:13px;} .stamp-sm{padding:3px 8px;font-size:11px;}
+.stamp-green{color:var(--green);background:var(--green-bg);border:2.5px double var(--green);}
+.stamp-amber{color:var(--amber);background:var(--amber-bg);border:2.5px double var(--amber);}
+.stamp-brick{color:var(--brick);background:var(--brick-bg);border:2.5px double var(--brick);}
+.stamp-muted{color:var(--ink-muted);background:#e7e5d8;border:2.5px double var(--ink-muted);}
+.banner-green{background:var(--green-bg);color:var(--green);padding:8px 12px;border-radius:4px;font-size:13px;font-weight:600;}
+.banner-brick{background:var(--brick-bg);color:var(--brick);padding:8px 12px;border-radius:4px;font-size:13px;font-weight:600;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.data-table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12px;}
+.data-table th{text-align:left;padding:6px;border-bottom:1px solid var(--border);color:var(--ink-muted);}
+.data-table td{padding:6px;border-bottom:1px solid var(--border);}
+.text-right{text-align:right;} .muted{color:var(--ink-muted);} .mono{font-family:var(--font-mono);}
+.card-link{display:block;text-decoration:none;cursor:pointer;}
+.company-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.company-stats{display:flex;gap:20px;margin-top:12px;flex-wrap:wrap;}
+.stat-label{font-size:10px;color:var(--ink-muted);text-transform:uppercase;}
+.stat-value{font-family:var(--font-mono);font-size:14px;}
+.status-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+.status-item{display:flex;align-items:center;gap:6px;}
+.note-item{border-left:3px solid var(--border);padding-left:10px;}
+.chart-wrap{width:100%;overflow-x:auto;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBOjai1Wi0T_IIeeF-WVUx-vR2MGxSVRzQ",
+  authDomain: "boletim-carteira.firebaseapp.com",
+  projectId: "boletim-carteira",
+  storageBucket: "boletim-carteira.firebasestorage.app",
+  messagingSenderId: "987053181056",
+  appId: "1:987053181056:web:fa2261f067cfe3d5327e65"
+};
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
+
+/* ---------- Storage (Firestore, com cache em memória) ---------- */
+let companiesCache = null;   // null = ainda não carregado
+let companyCache = {};       // ticker -> objeto | 'empty' (carregado mas não existe)
+let syncError = '';
+
+async function fbGetIndex(){
+  try{
+    const snap = await getDoc(doc(db,'boletim','index'));
+    return snap.exists() ? (snap.data().companies||[]) : [];
+  }catch(e){ syncError = 'Falha ao conectar no Firebase: '+e.message; return []; }
+}
+async function fbSetIndex(list){
+  try{ await setDoc(doc(db,'boletim','index'), {companies:list}); }
+  catch(e){ syncError = 'Falha ao salvar (sem conexão?): '+e.message; render(); }
+}
+async function fbGetCompany(ticker){
+  try{
+    const snap = await getDoc(doc(db,'boletim_companies',ticker));
+    return snap.exists() ? snap.data() : null;
+  }catch(e){ syncError = 'Falha ao conectar no Firebase: '+e.message; return null; }
+}
+async function fbSetCompany(ticker,data){
+  try{ await setDoc(doc(db,'boletim_companies',ticker), data); }
+  catch(e){ syncError = 'Falha ao salvar (sem conexão?): '+e.message; render(); }
+}
+async function fbDeleteCompany(ticker){
+  try{ await deleteDoc(doc(db,'boletim_companies',ticker)); }
+  catch(e){ syncError = 'Falha ao excluir (sem conexão?): '+e.message; render(); }
+}
+
+// Leituras síncronas a partir do cache (usadas pelas telas)
+function loadIndex(){ return companiesCache || []; }
+function loadCompany(t){ const c = companyCache[t]; return (c && c!=='empty') ? c : null; }
+
+// Escritas: atualiza o cache na hora (UI responde na hora) e sincroniza em segundo plano
+function saveIndex(list){ companiesCache = list; fbSetIndex(list); }
+function saveCompany(t,d){ companyCache[t] = d; fbSetCompany(t,d); }
+function deleteCompanyData(t){ delete companyCache[t]; fbDeleteCompany(t); }
+
+// Garante que o índice e a empresa aberta estejam carregados antes de renderizar
+function ensureIndexLoaded(){
+  if(companiesCache !== null) return true;
+  fbGetIndex().then(list=>{ companiesCache = list; render(); });
+  return false;
+}
+function ensureCompanyLoaded(ticker){
+  if(ticker in companyCache) return true;
+  fbGetCompany(ticker).then(data=>{ companyCache[ticker] = data || 'empty'; render(); });
+  return false;
+}
+
+function getToken(){ return localStorage.getItem('brapi-token') || ''; }
+function setToken(v){ localStorage.setItem('brapi-token', v); }
+
+/* ---------- Valuation ---------- */
+function calcBazin(div,dy){ const d=parseFloat(div),y=parseFloat(dy); if(!d||!y||d<=0||y<=0) return null; return d/(y/100); }
+function calcGraham(lpa,vpa){ const l=parseFloat(lpa),v=parseFloat(vpa); if(!l||!v||l<=0||v<=0) return null; return Math.sqrt(22.5*l*v); }
+function calcPVP(preco,vpCota){
+  const p=parseFloat(preco), v=parseFloat(vpCota);
+  if(!p||!v||p<=0||v<=0) return null;
+  return p/v;
+}
+function getPvpStatus(pvp){
+  if(pvp==null) return {label:'—',color:'muted'};
+  if(pvp<0.90) return {label:'Desconto forte',color:'green'};
+  if(pvp<1.0) return {label:'Desconto moderado',color:'green'};
+  if(pvp===1.0) return {label:'No patrimônio',color:'muted'};
+  if(pvp<=1.10) return {label:'Ágio pequeno',color:'amber'};
+  return {label:'Ágio elevado',color:'brick'};
+}
+function getStatus(preco,teto){
+  const p=parseFloat(preco), t=parseFloat(teto);
+  if(!p||!t) return {label:'SEM DADOS',color:'muted',margem:null};
+  const margem=((t-p)/t)*100;
+  if(margem>=15) return {label:'BARATO',color:'green',margem};
+  if(margem>=0) return {label:'NO PREÇO',color:'amber',margem};
+  return {label:'CARO',color:'brick',margem};
+}
+function fmtMoney(v){ const n=parseFloat(v); if(isNaN(n)) return '—'; return n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+function fmtPct(v,d){ d=d||1; const n=parseFloat(v); if(isNaN(n)) return '—'; return n.toFixed(d)+'%'; }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(iso){ if(!iso) return '—'; const p=iso.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---------- brapi.dev live price ---------- */
+async function fetchLivePrice(ticker){
+  const token = getToken();
+  if(!token) throw new Error('Configure seu token da brapi.dev primeiro (botão de engrenagem no topo).');
+  const url = 'https://brapi.dev/api/quote/' + encodeURIComponent(ticker);
+  const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+  if(res.status===401) throw new Error('Token inválido. Confira se colou certo (sem espaços) nas Configurações.');
+  if(res.status===402) throw new Error('Limite do seu plano na brapi.dev atingido.');
+  if(res.status===404) throw new Error('Ticker não encontrado na brapi.dev.');
+  if(!res.ok) throw new Error('Falha ao consultar cotação (HTTP '+res.status+').');
+  const data = await res.json();
+  const item = data.results && data.results[0];
+  if(!item || item.regularMarketPrice==null) throw new Error('Sem preço disponível pra esse ticker.');
+  return item.regularMarketPrice;
+}
+
+/* ---------- Mini SVG chart ---------- */
+function renderChart(history){
+  const pts = history.filter(h=>h.precoAtual);
+  if(pts.length<2) return '';
+  const w=640,h=180,pad=28;
+  const allVals = pts.flatMap(hh=>[parseFloat(hh.precoAtual), hh.precoTeto?parseFloat(hh.precoTeto):null]).filter(v=>v!=null);
+  const min=Math.min(...allVals), max=Math.max(...allVals);
+  const range = (max-min)||1;
+  const xStep = (w-pad*2)/(pts.length-1);
+  function toPoints(key){
+    const arr = pts.map((hh,i)=>{
+      const v = key==='teto' ? (hh.precoTeto?parseFloat(hh.precoTeto):null) : parseFloat(hh.precoAtual);
+      if(v==null) return null;
+      const x = pad + i*xStep;
+      const y = pad + (max-v)/range*(h-pad*2);
+      return x+','+y;
+    }).filter(Boolean);
+    return arr.join(' ');
+  }
+  const precoPts = toPoints('preco');
+  const tetoPts = toPoints('teto');
+  const labels = pts.map((hh,i)=> i===0||i===pts.length-1 ? '<text x="'+(pad+i*xStep)+'" y="'+(h-6)+'" font-size="9" font-family="IBM Plex Mono" fill="#6b7062" text-anchor="'+(i===0?'start':'end')+'">'+fmtDate(hh.date)+'</text>' : '').join('');
+  return '<div class="chart-wrap"><svg width="100%" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="xMidYMid meet">' +
+    '<polyline points="'+tetoPts+'" fill="none" stroke="#2f6844" stroke-width="2" stroke-dasharray="4 3"/>' +
+    '<polyline points="'+precoPts+'" fill="none" stroke="#8b3a2b" stroke-width="2"/>' +
+    labels +
+    '</svg><div class="muted" style="font-size:11px;margin-top:4px;"><span style="color:#8b3a2b;">■</span> Preço &nbsp; <span style="color:#2f6844;">■</span> Teto</div></div>';
+}
+
+/* ---------- Router / State ---------- */
+function currentRoute(){
+  const h = location.hash.replace(/^#\/?/, '');
+  if(!h) return {view:'dashboard'};
+  if(h==='comparador') return {view:'comparador'};
+  const m = h.match(/^company\/(.+)$/);
+  if(m) return {view:'company', ticker: decodeURIComponent(m[1])};
+  return {view:'dashboard'};
+}
+window.addEventListener('hashchange', render);
+window.addEventListener('DOMContentLoaded', render);
+
+let uiState = { showAdd:false, showSettings:false, fetchError:'', fetching:false, savedMsg:'' };
+
+function render(){
+  const route = currentRoute();
+  const app = document.getElementById('app');
+  let html = '<div class="container">' + renderHeader(route);
+
+  if(syncError){
+    html += '<div class="banner-brick" style="margin-bottom:16px;">'+esc(syncError)+'</div>';
+  }
+
+  if(route.view==='dashboard' || route.view==='comparador'){
+    if(!ensureIndexLoaded()){
+      html += '<div class="muted">Carregando dados da nuvem…</div>';
+    } else if(route.view==='dashboard'){
+      html += renderDashboard();
+    } else {
+      html += renderComparador();
+    }
+  } else if(route.view==='company'){
+    if(!ensureIndexLoaded() || !ensureCompanyLoaded(route.ticker)){
+      html += '<div class="muted">Carregando dados da nuvem…</div>';
+    } else {
+      html += renderCompany(route.ticker);
+    }
+  }
+  html += '</div>';
+  app.innerHTML = html;
+  attachHandlers(route);
+}
+
+function renderHeader(route){
+  return '<div class="header">' +
+    '<div><div class="title">Boletim de Carteira</div>' +
+    '<div class="subtitle">Estudo fundamentalista, preço teto e acompanhamento — B3 &amp; FIIs</div></div>' +
+    '<div class="nav">' +
+      '<button data-nav="#/" class="'+(route.view==='dashboard'?'active':'')+'">Carteira</button>' +
+      '<button data-nav="#/comparador" class="'+(route.view==='comparador'?'active':'')+'">Comparador</button>' +
+      '<button id="settingsBtn" class="btn-outline" style="border-radius:4px;">⚙</button>' +
+    '</div></div>' +
+    (uiState.showSettings ? renderSettings() : '');
+}
+
+function renderSettings(){
+  const t = getToken();
+  return '<div class="card" style="margin-bottom:18px;">' +
+    '<div class="section-title">Token da brapi.dev</div>' +
+    '<div class="field-hint" style="margin-bottom:8px;">Fica salvo só neste navegador (localStorage), nunca é enviado ao GitHub. Pegue o seu gratuito em brapi.dev/dashboard.</div>' +
+    '<input class="input" type="password" id="tokenInput" placeholder="Cole seu token aqui" value="'+esc(t)+'"/>' +
+    '<div style="margin-top:10px;display:flex;gap:8px;">' +
+    '<button class="btn" id="saveTokenBtn">Salvar token</button>' +
+    '<button class="btn btn-outline" id="closeSettingsBtn">Fechar</button>' +
+    '</div></div>';
+}
+
+function renderDashboard(){
+  const companies = loadIndex();
+  const counts = {'BARATO':0,'NO PREÇO':0,'CARO':0,'SEM DADOS':0};
+  companies.forEach(c=>{ const s=getStatus(c.precoAtual,c.precoTeto); counts[s.label]=(counts[s.label]||0)+1; });
+  let html = '<div class="status-row">';
+  Object.keys(counts).forEach(label=>{
+    if(counts[label]>0){
+      const color = label==='BARATO'?'green':label==='CARO'?'brick':label==='NO PREÇO'?'amber':'muted';
+      html += '<div class="status-item"><span class="stamp stamp-sm stamp-'+color+'">'+label+'</span><span class="mono muted" style="font-size:13px;">'+counts[label]+'</span></div>';
+    }
+  });
+  html += '</div>';
+
+  html += uiState.showAdd ? renderAddForm(companies.map(c=>c.ticker)) :
+    '<div style="margin-bottom:18px;"><button class="btn" id="showAddBtn">+ Nova empresa</button></div>';
+
+  if(companies.length===0){
+    html += '<div class="muted" style="font-size:13px;">Nenhuma empresa cadastrada ainda. Comece pela primeira ação ou FII que você quer estudar.</div>';
+  } else {
+    html += '<div style="display:flex;flex-direction:column;gap:12px;">';
+    companies.forEach(c=>{
+      const status = getStatus(c.precoAtual, c.precoTeto);
+      html += '<a href="#/company/'+encodeURIComponent(c.ticker)+'" class="card card-link">' +
+        '<div class="company-row"><div>' +
+        '<div class="mono" style="font-weight:600;font-size:18px;">'+esc(c.ticker)+'</div>' +
+        '<div class="muted" style="font-size:12px;margin-top:2px;">'+esc(c.nome)+' · '+esc(c.setor||'sem setor')+'</div>' +
+        '</div><span class="stamp stamp-sm stamp-'+status.color+'">'+status.label+'</span></div>' +
+        '<div class="company-stats">' +
+        '<div><div class="stat-label">Preço</div><div class="stat-value">'+fmtMoney(c.precoAtual)+'</div></div>' +
+        '<div><div class="stat-label">Teto</div><div class="stat-value">'+fmtMoney(c.precoTeto)+'</div></div>' +
+        '<div><div class="stat-label">Margem</div><div class="stat-value">'+(status.margem===null?'—':fmtPct(status.margem))+'</div></div>' +
+        '</div></a>';
+    });
+    html += '</div>';
+  }
+  return html;
+}
+
+function renderAddForm(existingTickers){
+  return '<div class="card" style="margin-bottom:20px;">' +
+    '<div class="section-title">Nova empresa</div>' +
+    '<label class="field"><span class="field-label">Ticker</span><input class="input" id="newTicker" placeholder="Ex: KLBN4"/></label>' +
+    '<label class="field"><span class="field-label">Nome</span><input class="input text" id="newNome" placeholder="Ex: Klabin"/></label>' +
+    '<label class="field"><span class="field-label">Tipo</span><select class="input text" id="newTipo"><option value="ACAO">Ação</option><option value="FII">FII</option></select></label>' +
+    '<label class="field"><span class="field-label">Setor</span><input class="input text" id="newSetor" placeholder="Ex: Papel e Celulose"/></label>' +
+    '<div id="addError" style="color:var(--brick);font-size:12px;margin-bottom:10px;"></div>' +
+    '<div style="display:flex;gap:8px;"><button class="btn" id="createBtn">Cadastrar</button><button class="btn btn-outline" id="cancelAddBtn">Cancelar</button></div>' +
+    '</div>';
+}
+
+function renderComparador(){
+  const companies = loadIndex();
+  if(companies.length===0) return '<div class="muted" style="font-size:13px;">Cadastre empresas na carteira para poder compará-las.</div>';
+  const setores = [...new Set(companies.map(c=>c.setor||'sem setor'))];
+  if(!uiState.setor || !setores.includes(uiState.setor)) uiState.setor = setores[0];
+  const list = companies.filter(c=>(c.setor||'sem setor')===uiState.setor);
+  let html = '<label class="field"><span class="field-label">Setor</span><select class="input text" id="setorSelect">';
+  setores.forEach(s=> html += '<option value="'+esc(s)+'" '+(s===uiState.setor?'selected':'')+'>'+esc(s)+'</option>');
+  html += '</select></label><div style="overflow-x:auto;"><table class="data-table" style="min-width:480px;"><thead><tr><th>Ticker</th><th class="text-right">Preço</th><th class="text-right">Teto</th><th class="text-right">Margem</th><th>Status</th></tr></thead><tbody>';
+  list.forEach(c=>{
+    const status = getStatus(c.precoAtual, c.precoTeto);
+    html += '<tr><td style="font-weight:600;">'+esc(c.ticker)+'</td><td class="text-right">'+fmtMoney(c.precoAtual)+'</td><td class="text-right">'+fmtMoney(c.precoTeto)+'</td><td class="text-right">'+(status.margem===null?'—':fmtPct(status.margem))+'</td><td><span class="stamp stamp-sm stamp-'+status.color+'">'+status.label+'</span></td></tr>';
+  });
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function renderCompany(ticker){
+  let form = loadCompany(ticker);
+  if(!form) form = {ticker,nome:'',tipo:'ACAO',setor:'',precoAtual:'',lpa:'',vpa:'',vpCota:'',dividendosAnuais:'',roic:'',dividaLiquidaEbitda:'',dyDesejado:'6',precoVenda:'',alertaAtivo:true,history:[],notes:[]};
+
+  const bazin = calcBazin(form.dividendosAnuais, form.dyDesejado);
+  const graham = calcGraham(form.lpa, form.vpa);
+  const precoTeto = bazin || graham || null;
+  const pvp = calcPVP(form.precoAtual, form.vpCota);
+  const pvpStatus = getPvpStatus(pvp);
+  const pl = (form.lpa && form.precoAtual) ? (parseFloat(form.precoAtual)/parseFloat(form.lpa)) : null;
+  const dyAtual = (form.dividendosAnuais && form.precoAtual) ? (parseFloat(form.dividendosAnuais)/parseFloat(form.precoAtual)*100) : null;
+  const status = getStatus(form.precoAtual, precoTeto);
+  const alertaCompra = form.alertaAtivo && precoTeto && parseFloat(form.precoAtual) <= precoTeto;
+  const alertaVenda = form.alertaAtivo && form.precoVenda && parseFloat(form.precoAtual) >= parseFloat(form.precoVenda);
+
+  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+    '<a href="#/" class="link-btn">← voltar à carteira</a>' +
+    '<button class="btn btn-danger" id="deleteBtn">Excluir</button></div>';
+
+  html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+    '<div><div class="mono" style="font-size:26px;font-weight:600;">'+esc(ticker)+'</div>' +
+    '<div class="muted" style="font-size:13px;">'+esc(form.nome)+' · '+(form.tipo==='FII'?'FII':'Ação')+' · '+esc(form.setor||'sem setor')+'</div></div>' +
+    '<span class="stamp stamp-md stamp-'+status.color+'">'+status.label+'</span></div>';
+
+  if(alertaCompra || alertaVenda){
+    html += '<div style="margin-top:14px;display:flex;flex-direction:column;gap:6px;">';
+    if(alertaCompra) html += '<div class="banner-green">Preço atual está no ou abaixo do preço teto — zona de compra.</div>';
+    if(alertaVenda) html += '<div class="banner-brick">Preço atual atingiu o preço de venda definido.</div>';
+    html += '</div>';
+  }
+
+  html += '<div class="card" style="margin-top:20px;"><div class="section-title">Dados fundamentalistas</div>';
+  html += '<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px;">' +
+    '<label class="field" style="flex:1;margin-bottom:0;"><span class="field-label">Preço atual (R$)</span>' +
+    '<input class="input" type="number" step="0.01" id="f_precoAtual" value="'+esc(form.precoAtual)+'"/></label>' +
+    '<button class="btn btn-outline" id="fetchPriceBtn" '+(uiState.fetching?'disabled':'')+'>'+(uiState.fetching?'Buscando…':'Buscar preço atual')+'</button></div>';
+  if(uiState.fetchError) html += '<div style="color:var(--brick);font-size:12px;margin-bottom:10px;">'+esc(uiState.fetchError)+'</div>';
+
+  html += '<div class="grid-2">' +
+    field('f_dividendosAnuais','Dividendos 12m/cota (R$)', form.dividendosAnuais) +
+    field('f_lpa','LPA (R$)', form.lpa, 'lucro por ação') +
+    field('f_vpa','VPA (R$)', form.vpa, 'valor patrimonial/ação') +
+    field('f_vpCota','VP por cota (R$)', form.vpCota, 'p/ P·VP — útil em FIIs') +
+    field('f_roic','ROIC (%)', form.roic) +
+    field('f_dividaLiquidaEbitda','Dív. líq / EBITDA (x)', form.dividaLiquidaEbitda) +
+    field('f_dyDesejado','DY desejado p/ Bazin (%)', form.dyDesejado, 'padrão 6%') +
+    field('f_precoVenda','Preço de venda (R$)', form.precoVenda, 'alerta opcional') +
+    '</div>';
+
+  html += '<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-muted);">' +
+    '<input type="checkbox" id="f_alertaAtivo" '+(form.alertaAtivo?'checked':'')+'/> Alertas ativos para esta empresa</label>';
+  if(uiState.savedMsg) html += '<div style="color:var(--green);font-size:12px;margin-top:8px;">'+esc(uiState.savedMsg)+'</div>';
+  html += '<div style="margin-top:12px;"><button class="btn" id="saveBtn">Salvar e registrar no histórico</button></div></div>';
+
+  html += '<div class="card"><div class="section-title">Valuation</div><div class="grid-2">' +
+    stat('Teto (Bazin)', bazin?fmtMoney(bazin):'—') +
+    stat('Teto (Graham)', graham?fmtMoney(graham):'—') +
+    stat('P/L atual', pl?pl.toFixed(2):'—') +
+    stat('DY atual', dyAtual?fmtPct(dyAtual,2):'—') +
+    '</div><div class="muted" style="margin-top:10px;font-size:11px;">Teto usado no status: '+(bazin?'Bazin':graham?'Graham':'sem dados suficientes')+'. Ferramenta de apoio ao seu estudo — não é recomendação de compra ou venda.</div></div>';
+
+  html += '<div class="card"><div class="section-title">P/VP — Valor Patrimonial</div><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">' +
+    stat('P/VP', pvp?pvp.toFixed(2):'—') +
+    stat('Desconto/Ágio', pvp?fmtPct((1-pvp)*100,1):'—') +
+    '<span class="stamp stamp-sm stamp-'+pvpStatus.color+'">'+pvpStatus.label+'</span>' +
+    '</div><div class="muted" style="margin-top:10px;font-size:11px;">P/VP &lt; 1 indica cota negociada abaixo do valor patrimonial (comum em FIIs). Não use isoladamente: cheque vacância, qualidade dos inquilinos/ativos e a data do último laudo de avaliação antes de decidir.</div></div>';
+
+  const chartHtml = renderChart(form.history||[]);
+  if(chartHtml) html += '<div class="card"><div class="section-title">Histórico: preço vs. teto</div>'+chartHtml+'</div>';
+
+  if(form.history && form.history.length>0){
+    html += '<div class="card" style="overflow-x:auto;"><div class="section-title">Registros</div><table class="data-table"><thead><tr><th>Data</th><th class="text-right">Preço</th><th class="text-right">Teto</th><th class="text-right">P/VP</th><th class="text-right">ROIC</th><th class="text-right">Dív/EBITDA</th></tr></thead><tbody>';
+    [...form.history].reverse().forEach(h=>{
+      const hPvp = h.pvp!=null ? h.pvp : calcPVP(h.precoAtual, h.vpCota);
+      html += '<tr><td>'+fmtDate(h.date)+'</td><td class="text-right">'+fmtMoney(h.precoAtual)+'</td><td class="text-right">'+(h.precoTeto?fmtMoney(h.precoTeto):'—')+'</td><td class="text-right">'+(hPvp?hPvp.toFixed(2):'—')+'</td><td class="text-right">'+(h.roic?fmtPct(h.roic):'—')+'</td><td class="text-right">'+(h.dividaLiquidaEbitda?h.dividaLiquidaEbitda+'x':'—')+'</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  html += '<div class="card" style="margin-bottom:30px;"><div class="section-title">Diário de análise</div>' +
+    '<textarea class="input text" id="noteText" placeholder="Anote sua tese, leitura do relatório, dúvidas..."></textarea>' +
+    '<div style="margin-top:8px;"><button class="btn" id="addNoteBtn">Adicionar nota</button></div>' +
+    '<div style="margin-top:14px;display:flex;flex-direction:column;gap:10px;">';
+  (form.notes||[]).forEach((n,idx)=>{
+    html += '<div class="note-item"><div style="display:flex;justify-content:space-between;">' +
+      '<span class="mono muted" style="font-size:11px;">'+fmtDate(n.date)+'</span>' +
+      '<button class="link-btn" style="color:var(--brick);" data-remove-note="'+idx+'">remover</button></div>' +
+      '<div style="font-size:13px;margin-top:2px;white-space:pre-wrap;">'+esc(n.texto)+'</div></div>';
+  });
+  html += '</div></div>';
+
+  return html;
+}
+function field(id,label,val,hint){
+  return '<label class="field"><span class="field-label">'+label+'</span>' +
+    '<input class="input" type="number" step="0.01" id="'+id+'" value="'+esc(val)+'"/>' +
+    (hint?'<span class="field-hint">'+hint+'</span>':'') + '</label>';
+}
+function stat(label,val){
+  return '<div><div class="stat-label">'+label+'</div><div class="mono" style="font-size:18px;">'+val+'</div></div>';
+}
+
+/* ---------- Event handlers ---------- */
+function attachHandlers(route){
+  document.querySelectorAll('[data-nav]').forEach(b=> b.onclick = ()=>{ location.hash = b.getAttribute('data-nav'); });
+  const settingsBtn = document.getElementById('settingsBtn');
+  if(settingsBtn) settingsBtn.onclick = ()=>{ uiState.showSettings = !uiState.showSettings; render(); };
+  const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+  if(closeSettingsBtn) closeSettingsBtn.onclick = ()=>{ uiState.showSettings = false; render(); };
+  const saveTokenBtn = document.getElementById('saveTokenBtn');
+  if(saveTokenBtn) saveTokenBtn.onclick = ()=>{ setToken(document.getElementById('tokenInput').value.trim()); uiState.showSettings=false; render(); };
+
+  if(route.view==='dashboard'){
+    const showAddBtn = document.getElementById('showAddBtn');
+    if(showAddBtn) showAddBtn.onclick = ()=>{ uiState.showAdd = true; render(); };
+    const cancelAddBtn = document.getElementById('cancelAddBtn');
+    if(cancelAddBtn) cancelAddBtn.onclick = ()=>{ uiState.showAdd = false; render(); };
+    const createBtn = document.getElementById('createBtn');
+    if(createBtn) createBtn.onclick = ()=>{
+      const t = document.getElementById('newTicker').value.trim().toUpperCase();
+      const nome = document.getElementById('newNome').value.trim();
+      const tipo = document.getElementById('newTipo').value;
+      const setor = document.getElementById('newSetor').value.trim();
+      const companies = loadIndex();
+      const errEl = document.getElementById('addError');
+      if(!t){ errEl.textContent='Informe o ticker.'; return; }
+      if(companies.some(c=>c.ticker===t)){ errEl.textContent='Esse ticker já está cadastrado.'; return; }
+      if(!nome){ errEl.textContent='Informe o nome da empresa.'; return; }
+      const entry = {ticker:t,nome,tipo,setor,precoAtual:'',precoTeto:null,updatedAt:null};
+      const next = [...companies, entry].sort((a,b)=>a.ticker.localeCompare(b.ticker));
+      saveIndex(next);
+      saveCompany(t, {ticker:t,nome,tipo,setor,precoAtual:'',lpa:'',vpa:'',vpCota:'',dividendosAnuais:'',roic:'',dividaLiquidaEbitda:'',dyDesejado:'6',precoVenda:'',alertaAtivo:true,history:[],notes:[]});
+      uiState.showAdd = false;
+      location.hash = '#/company/'+encodeURIComponent(t);
+    };
+  }
+
+  if(route.view==='comparador'){
+    const sel = document.getElementById('setorSelect');
+    if(sel) sel.onchange = ()=>{ uiState.setor = sel.value; render(); };
+  }
+
+  if(route.view==='company'){
+    const ticker = route.ticker;
+    const deleteBtn = document.getElementById('deleteBtn');
+    if(deleteBtn) deleteBtn.onclick = ()=>{
+      if(!confirm('Excluir '+ticker+' da carteira? Isso apaga histórico e notas.')) return;
+      saveIndex(loadIndex().filter(c=>c.ticker!==ticker));
+      deleteCompanyData(ticker);
+      location.hash = '#/';
+    };
+    const fetchBtn = document.getElementById('fetchPriceBtn');
+    if(fetchBtn) fetchBtn.onclick = async ()=>{
+      uiState.fetching = true; uiState.fetchError=''; render();
+      try{
+        const price = await fetchLivePrice(ticker);
+        const form = loadCompany(ticker) || {};
+        form.precoAtual = String(price);
+        saveCompany(ticker, form);
+        uiState.fetching = false;
+      }catch(e){
+        uiState.fetching = false;
+        uiState.fetchError = e.message;
+      }
+      render();
+    };
+    const saveBtn = document.getElementById('saveBtn');
+    if(saveBtn) saveBtn.onclick = ()=>{
+      const form = loadCompany(ticker) || {ticker,history:[],notes:[]};
+      form.precoAtual = document.getElementById('f_precoAtual').value;
+      form.dividendosAnuais = document.getElementById('f_dividendosAnuais').value;
+      form.lpa = document.getElementById('f_lpa').value;
+      form.vpa = document.getElementById('f_vpa').value;
+      form.vpCota = document.getElementById('f_vpCota').value;
+      form.roic = document.getElementById('f_roic').value;
+      form.dividaLiquidaEbitda = document.getElementById('f_dividaLiquidaEbitda').value;
+      form.dyDesejado = document.getElementById('f_dyDesejado').value;
+      form.precoVenda = document.getElementById('f_precoVenda').value;
+      form.alertaAtivo = document.getElementById('f_alertaAtivo').checked;
+
+      const bazin = calcBazin(form.dividendosAnuais, form.dyDesejado);
+      const graham = calcGraham(form.lpa, form.vpa);
+      const precoTeto = bazin || graham || null;
+      const pvpSnap = calcPVP(form.precoAtual, form.vpCota);
+      const snapshot = {date:todayISO(),precoAtual:form.precoAtual,lpa:form.lpa,vpa:form.vpa,vpCota:form.vpCota,dividendosAnuais:form.dividendosAnuais,roic:form.roic,dividaLiquidaEbitda:form.dividaLiquidaEbitda,precoTeto,pvp:pvpSnap};
+      form.history = (form.history||[]).filter(h=>h.date!==snapshot.date);
+      form.history.push(snapshot);
+      form.history.sort((a,b)=>a.date.localeCompare(b.date));
+      saveCompany(ticker, form);
+
+      const idx = loadIndex().filter(c=>c.ticker!==ticker);
+      idx.push({ticker,nome:form.nome,tipo:form.tipo,setor:form.setor,precoAtual:form.precoAtual,precoTeto,updatedAt:snapshot.date});
+      idx.sort((a,b)=>a.ticker.localeCompare(b.ticker));
+      saveIndex(idx);
+
+      uiState.savedMsg = 'Salvo e snapshot registrado no histórico.';
+      render();
+      setTimeout(()=>{ uiState.savedMsg=''; render(); }, 3000);
+    };
+    const addNoteBtn = document.getElementById('addNoteBtn');
+    if(addNoteBtn) addNoteBtn.onclick = ()=>{
+      const txt = document.getElementById('noteText').value.trim();
+      if(!txt) return;
+      const form = loadCompany(ticker) || {ticker,history:[],notes:[]};
+      form.notes = form.notes||[];
+      form.notes.unshift({date:todayISO(), texto:txt});
+      saveCompany(ticker, form);
+      render();
+    };
+    document.querySelectorAll('[data-remove-note]').forEach(btn=>{
+      btn.onclick = ()=>{
+        const idx = parseInt(btn.getAttribute('data-remove-note'),10);
+        const form = loadCompany(ticker);
+        form.notes.splice(idx,1);
+        saveCompany(ticker, form);
+        render();
+      };
+    });
+  }
+}
+</script>
+</body>
+</html>
