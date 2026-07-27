@@ -228,9 +228,10 @@ async function fetchLiveData(ticker){
     out.preenchidos.push('Dív.líq/EBITDA');
   } else out.faltando.push('Dív.líq/EBITDA');
 
-  // ROIC: a brapi não devolve ROIC. Devolve ROE (returnOnEquity), que é outra métrica.
-  // Não preenchemos o campo ROIC com ROE pra não misturar as coisas.
-  out.roeInformativo = (fd.returnOnEquity!=null) ? Number((fd.returnOnEquity*100).toFixed(1)) : null;
+  // ROE (returnOnEquity) vem da brapi. Já ROIC não vem — são métricas diferentes
+  // (ROE olha só o patrimônio líquido; ROIC olha todo o capital investido), então ROIC fica manual.
+  if(fd.returnOnEquity!=null){ out.roe = Number((fd.returnOnEquity*100).toFixed(1)); out.preenchidos.push('ROE'); }
+  else out.faltando.push('ROE');
   out.faltando.push('ROIC');
 
   return out;
@@ -401,7 +402,7 @@ function renderComparador(){
 
 function renderCompany(ticker){
   let form = loadCompany(ticker);
-  if(!form) form = {ticker,nome:'',tipo:'ACAO',setor:'',precoAtual:'',lpa:'',vpa:'',vpCota:'',dividendosAnuais:'',roic:'',dividaLiquidaEbitda:'',dyDesejado:'6',precoVenda:'',alertaAtivo:true,history:[],notes:[]};
+  if(!form) form = {ticker,nome:'',tipo:'ACAO',setor:'',precoAtual:'',lpa:'',vpa:'',vpCota:'',dividendosAnuais:'',roic:'',roe:'',dividaLiquidaEbitda:'',dyDesejado:'6',precoVenda:'',alertaAtivo:true,history:[],notes:[]};
 
   const bazin = calcBazin(form.dividendosAnuais, form.dyDesejado);
   const graham = calcGraham(form.lpa, form.vpa);
@@ -443,7 +444,8 @@ function renderCompany(ticker){
     field('f_lpa','LPA (R$)', form.lpa, 'lucro por ação') +
     field('f_vpa','VPA (R$)', form.vpa, 'valor patrimonial/ação') +
     field('f_vpCota','VP por cota (R$)', form.vpCota, 'p/ P·VP — útil em FIIs') +
-    field('f_roic','ROIC (%)', form.roic) +
+    field('f_roic','ROIC (%)', form.roic, 'manual') +
+    field('f_roe','ROE (%)', form.roe, 'vem da brapi') +
     field('f_dividaLiquidaEbitda','Dív. líq / EBITDA (x)', form.dividaLiquidaEbitda) +
     field('f_dyDesejado','DY desejado p/ Bazin (%)', form.dyDesejado, 'padrão 6%') +
     field('f_precoVenda','Preço de venda (R$)', form.precoVenda, 'alerta opcional') +
@@ -471,10 +473,10 @@ function renderCompany(ticker){
   if(chartHtml) html += '<div class="card"><div class="section-title">Histórico: preço vs. teto</div>'+chartHtml+'</div>';
 
   if(form.history && form.history.length>0){
-    html += '<div class="card" style="overflow-x:auto;"><div class="section-title">Registros</div><table class="data-table"><thead><tr><th>Data</th><th class="text-right">Preço</th><th class="text-right">Teto</th><th class="text-right">P/VP</th><th class="text-right">ROIC</th><th class="text-right">Dív/EBITDA</th></tr></thead><tbody>';
+    html += '<div class="card" style="overflow-x:auto;"><div class="section-title">Registros</div><table class="data-table"><thead><tr><th>Data</th><th class="text-right">Preço</th><th class="text-right">Teto</th><th class="text-right">P/VP</th><th class="text-right">ROIC</th><th class="text-right">ROE</th><th class="text-right">Dív/EBITDA</th></tr></thead><tbody>';
     [...form.history].reverse().forEach(h=>{
       const hPvp = h.pvp!=null ? h.pvp : calcPVP(h.precoAtual, h.vpCota);
-      html += '<tr><td>'+fmtDate(h.date)+'</td><td class="text-right">'+fmtMoney(h.precoAtual)+'</td><td class="text-right">'+(h.precoTeto?fmtMoney(h.precoTeto):'—')+'</td><td class="text-right">'+(hPvp?hPvp.toFixed(2):'—')+'</td><td class="text-right">'+(h.roic?fmtPct(h.roic):'—')+'</td><td class="text-right">'+(h.dividaLiquidaEbitda?h.dividaLiquidaEbitda+'x':'—')+'</td></tr>';
+      html += '<tr><td>'+fmtDate(h.date)+'</td><td class="text-right">'+fmtMoney(h.precoAtual)+'</td><td class="text-right">'+(h.precoTeto?fmtMoney(h.precoTeto):'—')+'</td><td class="text-right">'+(hPvp?hPvp.toFixed(2):'—')+'</td><td class="text-right">'+(h.roic?fmtPct(h.roic):'—')+'</td><td class="text-right">'+(h.roe?fmtPct(h.roe):'—')+'</td><td class="text-right">'+(h.dividaLiquidaEbitda?h.dividaLiquidaEbitda+'x':'—')+'</td></tr>';
     });
     html += '</tbody></table></div>';
   }
@@ -531,7 +533,7 @@ function attachHandlers(route){
       const entry = {ticker:t,nome,tipo,setor,precoAtual:'',precoTeto:null,updatedAt:null};
       const next = [...companies, entry].sort((a,b)=>a.ticker.localeCompare(b.ticker));
       saveIndex(next);
-      saveCompany(t, {ticker:t,nome,tipo,setor,precoAtual:'',lpa:'',vpa:'',vpCota:'',dividendosAnuais:'',roic:'',dividaLiquidaEbitda:'',dyDesejado:'6',precoVenda:'',alertaAtivo:true,history:[],notes:[]});
+      saveCompany(t, {ticker:t,nome,tipo,setor,precoAtual:'',lpa:'',vpa:'',vpCota:'',dividendosAnuais:'',roic:'',roe:'',dividaLiquidaEbitda:'',dyDesejado:'6',precoVenda:'',alertaAtivo:true,history:[],notes:[]});
       uiState.showAdd = false;
       location.hash = '#/company/'+encodeURIComponent(t);
     };
@@ -562,11 +564,12 @@ function attachHandlers(route){
         if(d.vpa!=null) form.vpa = String(d.vpa);
         if(d.dividendosAnuais!=null) form.dividendosAnuais = String(d.dividendosAnuais);
         if(d.dividaLiquidaEbitda!=null) form.dividaLiquidaEbitda = String(d.dividaLiquidaEbitda);
+        if(d.roe!=null) form.roe = String(d.roe);
         saveCompany(ticker, form);
         uiState.fetching = false;
         let msg = 'Preenchidos: Preço' + (d.preenchidos.length ? ', '+d.preenchidos.join(', ') : '') + '.';
         if(d.faltando.length) msg += ' Preencha à mão: '+d.faltando.join(', ')+'.';
-        if(d.roeInformativo!=null) msg += ' (A brapi não fornece ROIC; o ROE do ativo é '+d.roeInformativo+'%, mas é outra métrica — não usei no campo.)';
+        if(d.faltando.indexOf('ROIC')>=0) msg += ' (A brapi fornece ROE, mas não ROIC — são métricas diferentes, então o ROIC fica por sua conta.)';
         uiState.fetchInfo = msg;
       }catch(e){
         uiState.fetching = false;
@@ -583,6 +586,7 @@ function attachHandlers(route){
       form.vpa = document.getElementById('f_vpa').value;
       form.vpCota = document.getElementById('f_vpCota').value;
       form.roic = document.getElementById('f_roic').value;
+      form.roe = document.getElementById('f_roe').value;
       form.dividaLiquidaEbitda = document.getElementById('f_dividaLiquidaEbitda').value;
       form.dyDesejado = document.getElementById('f_dyDesejado').value;
       form.precoVenda = document.getElementById('f_precoVenda').value;
@@ -592,7 +596,7 @@ function attachHandlers(route){
       const graham = calcGraham(form.lpa, form.vpa);
       const precoTeto = bazin || graham || null;
       const pvpSnap = calcPVP(form.precoAtual, form.vpCota);
-      const snapshot = {date:todayISO(),precoAtual:form.precoAtual,lpa:form.lpa,vpa:form.vpa,vpCota:form.vpCota,dividendosAnuais:form.dividendosAnuais,roic:form.roic,dividaLiquidaEbitda:form.dividaLiquidaEbitda,precoTeto,pvp:pvpSnap};
+      const snapshot = {date:todayISO(),precoAtual:form.precoAtual,lpa:form.lpa,vpa:form.vpa,vpCota:form.vpCota,dividendosAnuais:form.dividendosAnuais,roic:form.roic,roe:form.roe,dividaLiquidaEbitda:form.dividaLiquidaEbitda,precoTeto,pvp:pvpSnap};
       form.history = (form.history||[]).filter(h=>h.date!==snapshot.date);
       form.history.push(snapshot);
       form.history.sort((a,b)=>a.date.localeCompare(b.date));
