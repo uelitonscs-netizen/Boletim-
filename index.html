@@ -181,11 +181,18 @@ function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&am
 async function fetchLiveData(ticker){
   const token = getToken();
   if(!token) throw new Error('Configure seu token da brapi.dev primeiro (botão de engrenagem no topo).');
-  const url = 'https://brapi.dev/api/quote/' + encodeURIComponent(ticker)
-            + '?modules=defaultKeyStatistics,financialData&dividends=true';
-  const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
-  if(res.status===401) throw new Error('Token inválido. Confira se colou certo (sem espaços) nas Configurações.');
-  if(res.status===402) throw new Error('Seu plano da brapi.dev não libera os dados fundamentalistas (ou o limite foi atingido). O preço ainda pode ser preenchido à mão.');
+  const base = 'https://brapi.dev/api/quote/' + encodeURIComponent(ticker);
+  const headers = { Authorization: 'Bearer ' + token };
+  let planoLimitado = false;
+
+  // 1ª tentativa: com fundamentos. Se o plano não liberar (401/402/403), tenta só o preço.
+  let res = await fetch(base + '?modules=defaultKeyStatistics,financialData&dividends=true', { headers });
+  if(res.status===401 || res.status===402 || res.status===403){
+    planoLimitado = true;
+    res = await fetch(base, { headers });
+    if(res.status===401) throw new Error('Token inválido. Confira se colou certo (sem espaços) nas Configurações.');
+    if(res.status===403 || res.status===402) throw new Error('Seu token não tem acesso a esse ativo na brapi.dev.');
+  }
   if(res.status===404) throw new Error('Ticker não encontrado na brapi.dev.');
   if(!res.ok) throw new Error('Falha ao consultar (HTTP '+res.status+').');
   const data = await res.json();
@@ -194,7 +201,7 @@ async function fetchLiveData(ticker){
 
   const ks = item.defaultKeyStatistics || {};
   const fd = item.financialData || {};
-  const out = { preenchidos: [], faltando: [] };
+  const out = { preenchidos: [], faltando: [], planoLimitado: planoLimitado };
 
   // Preço
   if(item.regularMarketPrice!=null) out.precoAtual = item.regularMarketPrice;
@@ -569,7 +576,8 @@ function attachHandlers(route){
         uiState.fetching = false;
         let msg = 'Preenchidos: Preço' + (d.preenchidos.length ? ', '+d.preenchidos.join(', ') : '') + '.';
         if(d.faltando.length) msg += ' Preencha à mão: '+d.faltando.join(', ')+'.';
-        if(d.faltando.indexOf('ROIC')>=0) msg += ' (A brapi fornece ROE, mas não ROIC — são métricas diferentes, então o ROIC fica por sua conta.)';
+        if(d.planoLimitado) msg = 'Só o preço foi preenchido: seu plano da brapi.dev não libera dados fundamentalistas para este ativo (no plano gratuito eles só funcionam em PETR4, VALE3, MGLU3 e ITUB4). Os demais campos ficam manuais — Fundamentus ou Status Invest resolvem.';
+        else if(d.faltando.indexOf('ROIC')>=0) msg += ' (A brapi fornece ROE, mas não ROIC — são métricas diferentes, então o ROIC fica por sua conta.)';
         uiState.fetchInfo = msg;
       }catch(e){
         uiState.fetching = false;
